@@ -25,6 +25,107 @@ class users
     /**
      * @param mixed $email
      */
+    public function setFieldIDs($userID, $fieldIDs)
+    {
+        //TODO TEST AND FIX
+        error_reporting(E_ALL);
+        ini_set('display_errors', 1);
+        $resultoldFieldIDs = $this->getFieldIDs($userID);
+        if($resultoldFieldIDs['error']){
+            return array('error'=>true, 'message' =>'error getting old field IDs: '. $resultoldFieldIDs['message']);
+        }
+        $oldFieldIDs = $resultoldFieldIDs['fieldsIDArray'];
+        //Remove stuff that is the same
+        foreach ($fieldIDs as $fieldID) {
+            foreach ($oldFieldIDs as $oldFieldID) {
+                if ($oldFieldID == $fieldID) {
+                    unset($oldFieldIDs[$fieldID]);
+                    unset($fieldIDs[$fieldID]);
+                }
+            }
+        }
+        $conn = new mysqli("localhost", "jacob", "https://slack.com/downloads/instructions/windows", "phpautho");
+        if ($conn->connect_error) {
+            die("Connection failed: " . $conn->connect_error);
+        }
+       // var_dump($fieldIDs);
+        //Add stuff that is not in $oldFieldIDs into the DB
+        foreach ($fieldIDs as $fieldID) {
+            if (!(in_array($fieldID, $oldFieldIDs))) {
+                $sql = "INSERT INTO `phpautho`.`fieldsmappping` (`userID`,`fieldID`) 
+                    VALUES ('" . $userID . "', '" . $fieldID . "');";
+                $data = $conn->query($sql);
+                if ($data != TRUE) {
+                    return array('error' => true, 'message' => "Error: " . $sql . "<br>" . $conn->error);
+                }
+                unset($fieldID, $fieldIDs);
+            }
+
+        }
+        //Remove stuff that is $oldFieldIDs but not in the new Fields
+        foreach ($oldFieldIDs as $oldFieldID) {
+
+            if (!(in_array($oldFieldID,$fieldIDs ))) {
+                $sql = "DELETE   FROM `phpautho`.`fieldsmappping` 
+                        WHERE (userID = '" . $userID . "' AND fieldID = '" . $oldFieldID . "')
+                        ";
+                var_dump($sql);
+                $data = $conn->query($sql);
+                if ($data != TRUE) {
+                    return array('error' => true, 'message' => "Error: " . $sql . "<br>" . $conn->error);
+                }
+                unset($fieldID, $fieldIDs);
+            }
+        }
+        return array('error'=>false, 'message'=>'Mission accomplished! You have changed your fields');
+    }
+    public function getFieldIDs($userID){
+        // Create connection
+        $conn = new mysqli("localhost", "jacob", "https://slack.com/downloads/instructions/windows", "phpautho");
+        if ($conn->connect_error) {
+            die("Connection failed: " . $conn->connect_error);
+        }
+
+        $sql = "SELECT * FROM `phpautho`.`fieldsmappping` WHERE userID = " . $userID ;
+        $data = $conn->query($sql);
+        if ($data != TRUE) {
+            return array('error'=>true, 'message'=>"Error: " . $sql . "<br>" . $conn->error);
+        }
+        $fieldsID = array();
+        for($i = 0 ; $i < $data->field_count; $i++){
+            $array = $data->fetch_array();
+            array_push($fieldsID, $array['fieldID']);
+
+        }
+        $conn->close();
+        return array('error' => false, 'fieldsIDArray'=> $fieldsID);
+    }
+
+    public function getFields($userID){
+    // Create connection
+    $conn = new mysqli("localhost", "jacob", "https://slack.com/downloads/instructions/windows", "phpautho");
+    if ($conn->connect_error) {
+        die("Connection failed: " . $conn->connect_error);
+    }
+    $return = $this->getFieldIDs($userID);
+    if($return['error'] != false){
+        return $return;
+    }else{
+        $fieldsID = $return['fieldsIDArray'];
+    }
+    $fields = array();
+    foreach($fieldsID  as $fieldID) {
+        $sql = "SELECT * FROM `phpautho`.`fields` WHERE fieldID = " . $fieldID ;
+        $data = $conn->query($sql);
+        if ($data != TRUE) {
+            return array('error' => true, 'message' => "Error: " . $sql . "<br>" . $conn->error);
+        }
+        $array = $data->fetch_array();
+        array_push($fields, $array['fieldName']);
+    }
+    $conn->close();
+    return array('error' => false, 'fieldsArray'=> $fields);
+}
     public function setPictureURL($userID, $pictureURL){
         // Create connection
         $conn = new mysqli("localhost", "jacob", "https://slack.com/downloads/instructions/windows", "phpautho");
@@ -32,7 +133,7 @@ class users
             die("Connection failed: " . $conn->connect_error);
         }
 
-        $sql = "REPLACE INTO `phpautho`.`resumemap` (`userID`,`pictureLink`) 
+        $sql = "REPLACE INTO `phpautho`.`picturemap` (`userID`,`pictureLink`) 
                     VALUES ('".$userID."', '".$pictureURL."');";
 
         if ($conn->query($sql) === TRUE) {
